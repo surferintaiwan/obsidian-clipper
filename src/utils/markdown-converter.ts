@@ -90,6 +90,22 @@ export function createMarkdownContent(content: string, url: string) {
 	turndownService.keep(['iframe', 'video', 'audio', 'sup', 'sub', 'svg', 'math']);
 	turndownService.remove(['button']);
 
+	// Preserve text content of accordion summary buttons (e.g. MUI Accordion, generic aria-expanded)
+	// This overrides the generic button removal above for disclosure/accordion toggle buttons
+	turndownService.addRule('accordionSummary', {
+		filter: function (node) {
+			return (
+				node.nodeName === 'BUTTON' &&
+				node instanceof HTMLElement &&
+				node.hasAttribute('aria-expanded')
+			);
+		},
+		replacement: function (content) {
+			// Strip any SVG markup that may come from expand/collapse icons
+			return content.replace(/<svg[\s\S]*?<\/svg>/gi, '').trim();
+		}
+	});
+
 	turndownService.addRule('list', {
 		filter: ['ul', 'ol'],
 		replacement: function (content: string, node: Node) {

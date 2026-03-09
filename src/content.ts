@@ -256,8 +256,33 @@ declare global {
 
 			const extractedContent: { [key: string]: string } = {};
 
+			// Preserve accordion summary buttons before Defuddle processing.
+			// Defuddle strips all <button> elements, but accordion summaries
+			// (identified by aria-expanded) contain content titles that should be kept.
+			// We temporarily replace them with <span> so Defuddle won't remove them,
+			// then restore the original buttons afterwards.
+			const accordionButtons = Array.from(document.querySelectorAll('button[aria-expanded]'));
+			const buttonBackups: Array<{ original: Element; replacement: Element }> = [];
+
+			for (const btn of accordionButtons) {
+				if (!btn.parentNode) continue;
+				const replacement = document.createElement('span');
+				replacement.innerHTML = btn.innerHTML;
+				// Remove expand/collapse icon SVGs from the replacement
+				replacement.querySelectorAll('svg').forEach(el => el.remove());
+				btn.parentNode.replaceChild(replacement, btn);
+				buttonBackups.push({ original: btn, replacement });
+			}
+
 			// Process with Defuddle first while we have access to the document
 			const defuddled = new Defuddle(document, { url: document.URL }).parse();
+
+			// Restore original accordion buttons
+			for (const { original, replacement } of buttonBackups) {
+				if (replacement.parentNode) {
+					replacement.parentNode.replaceChild(original, replacement);
+				}
+			}
 
 			// Create a new DOMParser
 			const parser = new DOMParser();
