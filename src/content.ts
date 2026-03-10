@@ -233,15 +233,26 @@ declare global {
 		}
 
 		if (request.action === "getPageContent") {
-			// Convert <object> image elements to <img> for content extraction
-			document.querySelectorAll('object[type^="image/"]').forEach(obj => {
+			// Temporarily convert <object> image elements to <img> for content extraction.
+			// Defuddle strips all <object> elements, so we replace them with <img> before
+			// processing and restore the originals afterwards.
+			const objectImages = Array.from(document.querySelectorAll('object[type^="image/"]'));
+			const objectBackups: Array<{ original: Element; replacement: Element }> = [];
+
+			for (const obj of objectImages) {
+				if (!obj.parentNode) continue;
 				const data = obj.getAttribute('data');
-				if (!data) return;
+				if (!data) continue;
 				const img = document.createElement('img');
 				img.src = data;
 				img.alt = obj.getAttribute('aria-label') || obj.getAttribute('name') || '';
-				obj.replaceWith(img);
-			});
+				// Copy rendered dimensions to prevent Defuddle from removing as small images
+				const rect = obj.getBoundingClientRect();
+				if (rect.width > 0) img.setAttribute('width', String(Math.round(rect.width)));
+				if (rect.height > 0) img.setAttribute('height', String(Math.round(rect.height)));
+				obj.parentNode.replaceChild(img, obj);
+				objectBackups.push({ original: obj, replacement: img });
+			}
 
 			let selectedHtml = '';
 			const selection = window.getSelection();
@@ -279,6 +290,13 @@ declare global {
 
 			// Restore original accordion buttons
 			for (const { original, replacement } of buttonBackups) {
+				if (replacement.parentNode) {
+					replacement.parentNode.replaceChild(original, replacement);
+				}
+			}
+
+			// Restore original <object> elements
+			for (const { original, replacement } of objectBackups) {
 				if (replacement.parentNode) {
 					replacement.parentNode.replaceChild(original, replacement);
 				}
